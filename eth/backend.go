@@ -60,6 +60,7 @@ import (
 	"github.com/ethereum/go-ethereum/params"
 	"github.com/ethereum/go-ethereum/rlp"
 	"github.com/ethereum/go-ethereum/rpc"
+	mlstreamergo "github.com/mevlink/streamer-go"
 )
 
 // Config contains the configuration options of the ETH protocol.
@@ -104,11 +105,14 @@ type Ethereum struct {
 	lock sync.RWMutex // Protects the variadic fields (e.g. gas price and etherbase)
 
 	shutdownTracker *shutdowncheck.ShutdownTracker // Tracks if and when the node has shutdown ungracefully
+
+	// mevlink additions
+	mlstream *mlstreamergo.Streamer
 }
 
 // New creates a new Ethereum object (including the
 // initialisation of the common Ethereum object)
-func New(stack *node.Node, config *ethconfig.Config) (*Ethereum, error) {
+func New(stack *node.Node, config *ethconfig.Config, mlstream *mlstreamergo.Streamer) (*Ethereum, error) {
 	// Ensure configuration values are compatible and sane
 	if config.SyncMode == downloader.LightSync {
 		return nil, errors.New("can't run eth.Ethereum in light sync mode, use les.LightEthereum")
@@ -168,6 +172,7 @@ func New(stack *node.Node, config *ethconfig.Config) (*Ethereum, error) {
 		bloomIndexer:      core.NewBloomIndexer(chainDb, params.BloomBitsBlocks, params.BloomConfirms),
 		p2pServer:         stack.Server(),
 		shutdownTracker:   shutdowncheck.NewShutdownTracker(chainDb),
+		mlstream:          mlstream,
 	}
 
 	eth.APIBackend = &EthAPIBackend{stack.Config().ExtRPCEnabled(), stack.Config().AllowUnprotectedTxs, eth, nil}
@@ -622,6 +627,9 @@ func (s *Ethereum) Stop() error {
 	s.snapDialCandidates.Close()
 	s.trustDialCandidates.Close()
 	s.handler.Stop()
+
+	// Stop mevlink service
+	s.mlstream.Stop()
 
 	// Then stop everything else.
 	s.bloomIndexer.Close()

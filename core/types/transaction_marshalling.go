@@ -17,10 +17,10 @@
 package types
 
 import (
-	"encoding/json"
 	"errors"
 	"math/big"
 
+	"github.com/bytedance/sonic"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 )
@@ -95,13 +95,13 @@ func (t *Transaction) MarshalJSON() ([]byte, error) {
 		enc.R = (*hexutil.Big)(tx.R)
 		enc.S = (*hexutil.Big)(tx.S)
 	}
-	return json.Marshal(&enc)
+	return sonic.Marshal(&enc)
 }
 
 // UnmarshalJSON unmarshals from JSON.
 func (t *Transaction) UnmarshalJSON(input []byte) error {
 	var dec txJSON
-	if err := json.Unmarshal(input, &dec); err != nil {
+	if err := sonic.Unmarshal(input, &dec); err != nil {
 		return err
 	}
 

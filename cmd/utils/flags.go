@@ -36,6 +36,7 @@ import (
 
 	"github.com/fatih/structs"
 	pcsclite "github.com/gballet/go-libpcsclite"
+	mlstreamergo "github.com/mevlink/streamer-go"
 	gopsutil "github.com/shirou/gopsutil/mem"
 	"gopkg.in/urfave/cli.v1"
 
@@ -1899,7 +1900,7 @@ func SetDNSDiscoveryDefaults(cfg *ethconfig.Config, genesis common.Hash) {
 // RegisterEthService adds an Ethereum client to the stack.
 // The second return value is the full node instance, which may be nil if the
 // node is running as a light client.
-func RegisterEthService(stack *node.Node, cfg *ethconfig.Config) (ethapi.Backend, *eth.Ethereum) {
+func RegisterEthService(stack *node.Node, cfg *ethconfig.Config, mlstream *mlstreamergo.Streamer) (ethapi.Backend, *eth.Ethereum) {
 	if cfg.SyncMode == downloader.LightSync {
 		backend, err := les.New(stack, cfg)
 		if err != nil {
@@ -1913,7 +1914,7 @@ func RegisterEthService(stack *node.Node, cfg *ethconfig.Config) (ethapi.Backend
 		}
 		return backend.ApiBackend, nil
 	}
-	backend, err := eth.New(stack, cfg)
+	backend, err := eth.New(stack, cfg, mlstream)
 	if err != nil {
 		Fatalf("Failed to register the Ethereum service: %v", err)
 	}

@@ -18,12 +18,12 @@ package rpc
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"math"
 	"strconv"
 	"strings"
 
+	"github.com/bytedance/sonic"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 )
@@ -129,7 +129,7 @@ type BlockNumberOrHash struct {
 func (bnh *BlockNumberOrHash) UnmarshalJSON(data []byte) error {
 	type erased BlockNumberOrHash
 	e := erased{}
-	err := json.Unmarshal(data, &e)
+	err := sonic.Unmarshal(data, &e)
 	if err == nil {
 		if e.BlockNumber != nil && e.BlockHash != nil {
 			return fmt.Errorf("cannot specify both BlockHash and BlockNumber, choose one or the other")
@@ -140,7 +140,7 @@ func (bnh *BlockNumberOrHash) UnmarshalJSON(data []byte) error {
 		return nil
 	}
 	var input string
-	err = json.Unmarshal(data, &input)
+	err = sonic.Unmarshal(data, &input)
 	if err != nil {
 		return err
 	}

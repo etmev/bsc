@@ -25,8 +25,8 @@ import (
 	"sync"
 	"time"
 
+	"github.com/bytedance/sonic"
 	"github.com/ethereum/go-ethereum/common/gopool"
-
 	"github.com/ethereum/go-ethereum/log"
 )
 
@@ -251,7 +251,7 @@ func (h *handler) handleImmediate(msg *jsonrpcMessage) bool {
 // handleSubscriptionResult processes subscription notifications.
 func (h *handler) handleSubscriptionResult(msg *jsonrpcMessage) {
 	var result subscriptionResult
-	if err := json.Unmarshal(msg.Params, &result); err != nil {
+	if err := sonic.Unmarshal(msg.Params, &result); err != nil {
 		h.log.Debug("Dropping invalid subscription message")
 		return
 	}
@@ -281,7 +281,7 @@ func (h *handler) handleResponse(msg *jsonrpcMessage) {
 		op.err = msg.Error
 		return
 	}
-	if op.err = json.Unmarshal(msg.Result, &op.sub.subid); op.err == nil {
+	if op.err = sonic.Unmarshal(msg.Result, &op.sub.subid); op.err == nil {
 		go op.sub.run()
 		h.clientSubs[op.sub.subid] = op.sub
 	}

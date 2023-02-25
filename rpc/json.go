@@ -27,6 +27,8 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/bytedance/sonic"
 )
 
 const (
@@ -87,7 +89,7 @@ func (msg *jsonrpcMessage) namespace() string {
 }
 
 func (msg *jsonrpcMessage) String() string {
-	b, _ := json.Marshal(msg)
+	b, _ := sonic.Marshal(msg)
 	return string(b)
 }
 
@@ -98,7 +100,7 @@ func (msg *jsonrpcMessage) errorResponse(err error) *jsonrpcMessage {
 }
 
 func (msg *jsonrpcMessage) response(result interface{}) *jsonrpcMessage {
-	enc, err := json.Marshal(result)
+	enc, err := sonic.Marshal(result)
 	if err != nil {
 		// TODO: wrap with 'internal server error'
 		return msg.errorResponse(err)
@@ -192,8 +194,8 @@ func NewFuncCodec(conn deadlineCloser, encode, decode func(v interface{}) error)
 // NewCodec creates a codec on the given connection. If conn implements ConnRemoteAddr, log
 // messages will use it to include the remote address of the connection.
 func NewCodec(conn Conn) ServerCodec {
-	enc := json.NewEncoder(conn)
-	dec := json.NewDecoder(conn)
+	enc := sonic.ConfigFastest.NewEncoder(conn)
+	dec := sonic.ConfigFastest.NewDecoder(conn)
 	dec.UseNumber()
 	return NewFuncCodec(conn, enc.Encode, dec.Decode)
 }
@@ -256,7 +258,7 @@ func (c *jsonCodec) closed() <-chan interface{} {
 func parseMessage(raw json.RawMessage) ([]*jsonrpcMessage, bool) {
 	if !isBatch(raw) {
 		msgs := []*jsonrpcMessage{{}}
-		json.Unmarshal(raw, &msgs[0])
+		sonic.Unmarshal(raw, &msgs[0])
 		return msgs, false
 	}
 	dec := json.NewDecoder(bytes.NewReader(raw))
