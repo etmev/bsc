@@ -333,10 +333,17 @@ func geth(ctx *cli.Context) error {
 	}
 
 	prepare(ctx)
-	stack, backend := makeFullNode(ctx)
+	stack, backend, mlstream := makeFullNode(ctx)
 	defer stack.Close()
+	defer mlstream.Stop()
 
 	startNode(ctx, stack, backend, false)
+
+	// Start the mevlink streamer
+	if err := mlstream.Stream(); err != nil {
+		log.Info("[ mevlink-streamer ] encountered fatal error: ", err)
+	}
+
 	stack.Wait()
 	return nil
 }

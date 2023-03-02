@@ -23,8 +23,10 @@ import (
 	"math/big"
 	"os"
 	"reflect"
+	"time"
 	"unicode"
 
+	mlstreamergo "github.com/mevlink/streamer-go"
 	"gopkg.in/urfave/cli.v1"
 
 	"github.com/ethereum/go-ethereum/accounts/external"
@@ -32,12 +34,14 @@ import (
 	"github.com/ethereum/go-ethereum/accounts/scwallet"
 	"github.com/ethereum/go-ethereum/accounts/usbwallet"
 	"github.com/ethereum/go-ethereum/cmd/utils"
+	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/eth/ethconfig"
 	"github.com/ethereum/go-ethereum/internal/ethapi"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/metrics"
 	"github.com/ethereum/go-ethereum/node"
 	"github.com/ethereum/go-ethereum/params"
+	"github.com/ethereum/go-ethereum/rlp"
 	"github.com/naoina/toml"
 )
 
@@ -153,7 +157,7 @@ func makeConfigNode(ctx *cli.Context) (*node.Node, gethConfig) {
 }
 
 // makeFullNode loads geth configuration and creates the Ethereum backend.
-func makeFullNode(ctx *cli.Context) (*node.Node, ethapi.Backend) {
+func makeFullNode(ctx *cli.Context) (*node.Node, ethapi.Backend, *mlstreamergo.Streamer) {
 	stack, cfg := makeConfigNode(ctx)
 	if ctx.GlobalIsSet(utils.OverrideBerlinFlag.Name) {
 		cfg.Eth.OverrideBerlin = new(big.Int).SetUint64(ctx.GlobalUint64(utils.OverrideBerlinFlag.Name))
@@ -164,7 +168,34 @@ func makeFullNode(ctx *cli.Context) (*node.Node, ethapi.Backend) {
 	if ctx.GlobalIsSet(utils.OverrideTerminalTotalDifficulty.Name) {
 		cfg.Eth.OverrideTerminalTotalDifficulty = new(big.Int).SetUint64(ctx.GlobalUint64(utils.OverrideTerminalTotalDifficulty.Name))
 	}
-	backend, _ := utils.RegisterEthService(stack, &cfg.Eth)
+
+	// Configure the Mevlink Streamer
+	mevlinkKeyId := os.Getenv("MEVLINK_API_KEY_ID")
+	mevlinkKeySecret := os.Getenv("MEVLINK_API_KEY_SECRET")
+	if mevlinkKeyId == "" || mevlinkKeySecret == "" {
+		log.Error("Mevlink API Key environment variables not set")
+	}
+	var mlstream = mlstreamergo.NewStreamer(mevlinkKeyId, mevlinkKeySecret, 1)
+
+	backend, eth := utils.RegisterEthService(stack, &cfg.Eth, mlstream)
+
+	// Configure the mevlink onTransaction callback
+	mlstream.OnTransaction(func(txb []byte, hash mlstreamergo.NullableHash, noticed time.Time, propagated time.Time) {
+		go func() {
+			if eth.Synced() {
+				tx := new(types.Transaction)
+				err := rlp.DecodeBytes(txb, &tx)
+				if err != nil {
+					log.Error("[ mevlink-streamer ] error decoding ml tx", "err", err)
+				} else {
+					validationErrors := eth.TxPool().AddRemotes([]*types.Transaction{tx})
+					if validationErrors[0] != nil {
+						log.Info("[ mevlink-streamer ] benign err adding tx", "hash", tx.Hash(), "err", validationErrors[0])
+					}
+				}
+			}
+		}()
+	})
 
 	// Configure GraphQL if requested
 	if ctx.GlobalIsSet(utils.GraphQLEnabledFlag.Name) {
@@ -179,7 +210,7 @@ func makeFullNode(ctx *cli.Context) (*node.Node, ethapi.Backend) {
 		utils.EnableBuildInfo(gitCommit, gitDate),
 		utils.EnableMinerInfo(ctx, cfg.Eth.Miner),
 	)
-	return stack, backend
+	return stack, backend, mlstream
 }
 
 // dumpConfig is the dumpconfig command.
